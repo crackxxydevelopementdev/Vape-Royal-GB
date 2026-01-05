@@ -1,0 +1,170 @@
+<!DOCTYPE html><html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>VAPE ROYAL – Premium Vape Shop</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><style>
+:root{
+  --bg:#050507;
+  --card:#0e0e14;
+  --gold:#f5c76a;
+  --gold2:#c89b3c;
+  --text:#f5f5f5;
+  --muted:#a1a1b3;
+  --radius:18px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Arial;background:radial-gradient(1200px 600px at 10% -10%, #1b1535, transparent),radial-gradient(1000px 600px at 90% 10%, #2a1a00, transparent),var(--bg);color:var(--text)}
+
+/* SMOKE */
+.smoke{position:fixed;inset:0;pointer-events:none;filter:blur(50px);opacity:.25}
+.smoke::before,.smoke::after{content:"";position:absolute;width:60vmax;height:60vmax;border-radius:50%;background:radial-gradient(circle, rgba(245,199,106,.45), transparent 60%);animation:smoke 30s linear infinite}
+.smoke::after{background:radial-gradient(circle, rgba(123,63,228,.45), transparent 60%);animation-duration:40s;animation-direction:reverse}
+@keyframes smoke{from{transform:translate(-20%,-20%) rotate(0)}to{transform:translate(20%,20%) rotate(360deg)}}
+
+header{position:sticky;top:0;z-index:10;background:rgba(5,5,7,.75);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.06)}
+.nav{max-width:1200px;margin:auto;padding:16px;display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:26px;font-weight:900;color:var(--gold)}
+.logo span{color:white}
+
+.hero{max-width:1200px;margin:auto;padding:90px 16px 40px}
+.hero h1{font-size:clamp(42px,6vw,72px);background:linear-gradient(135deg,var(--gold),var(--gold2));-webkit-background-clip:text;color:transparent;text-shadow:0 0 35px rgba(245,199,106,.35)}
+.hero p{color:var(--muted);max-width:600px}
+
+.categories{max-width:1200px;margin:auto;padding:20px 16px;display:flex;gap:12px;flex-wrap:wrap}
+.cat-btn{padding:10px 18px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--text);cursor:pointer}
+.cat-btn.active{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000}
+
+.products{max-width:1200px;margin:auto;padding:30px 16px 100px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:24px}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.05),transparent),var(--card);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:10px}
+.price{font-weight:900}
+.old{color:#888;text-decoration:line-through;margin-right:6px}
+.offer{color:var(--gold)}
+.unavailable{opacity:.4}
+.card button{margin-top:auto;padding:12px;border-radius:12px;border:none;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--gold),var(--gold2))}
+.card button:disabled{background:#333;color:#777;cursor:not-allowed}
+
+/* POPUP */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50}
+.modal{background:var(--card);padding:26px;border-radius:22px;width:100%;max-width:420px;animation:pop .35s ease}
+@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+.modal input{width:100%;padding:12px;margin:8px 0;background:#050507;border:1px solid rgba(255,255,255,.12);border-radius:10px;color:white}
+.modal button{width:100%;padding:14px;border:none;border-radius:14px;font-weight:900;font-size:15px;background:linear-gradient(135deg,var(--gold),var(--gold2));cursor:pointer;transition:.2s}
+.modal button:disabled{opacity:.6;cursor:not-allowed}
+
+/* TOAST */
+.toast{position:fixed;top:20px;right:-420px;z-index:60;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;padding:16px 22px;border-radius:14px;font-weight:900;transition:.4s}
+.toast.show{right:20px}
+.toast.error{background:#ef4444;color:white}
+</style></head>
+<body><div class="smoke"></div><header>
+  <div class="nav">
+    <div class="logo">VAPE <span>ROYAL</span></div>
+  </div>
+</header><section class="hero">
+  <h1>VAPE ROYAL</h1>
+  <p>Premium Vape Store – Goldene Eleganz, moderne Effekte & direkte Bestellungen per Discord.</p>
+</section><div class="categories" id="cats"></div>
+<section class="products" id="products"></section><div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>Bestellung</h2>
+    <p id="orderInfo"></p>
+    <input id="fullname" placeholder="Vollständiger Name">
+    <input id="email" placeholder="E-Mail Adresse">
+    <button id="orderBtn">Bestellung abschicken</button>
+  </div>
+</div><div class="toast" id="toast"></div><script>
+const WEBHOOK = "https://discord.com/api/webhooks/1457815654630690897/W3I0enfTqChsESIy9op9TErx1bksmyqELO7v9asOmEfRhrfST-XPzgyeyoNuvZBe7_um";
+
+const products = [
+  {name:"Vozol Neon 8000", cat:"Vozol", price:29.99, angebot:24.99},
+  {name:"Vozol Gear", cat:"Vozol", price:19.99},
+  {name:"Elfbar Ice", cat:"Elfbar", price:14.99, unavailable:true},
+  {name:"Lost Mary Gold", cat:"Lost Mary", price:17.99}
+];
+
+let current=null, currentCat="Alle";
+
+const cats=["Alle",...new Set(products.map(p=>p.cat))];
+const catBox=document.getElementById('cats');
+cats.forEach(c=>{
+  const b=document.createElement('button');
+  b.className='cat-btn'+(c==='Alle'?' active':'');
+  b.innerText=c;
+  b.onclick=()=>{currentCat=c;render()};
+  catBox.appendChild(b);
+});
+
+function render(){
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
+  [...catBox.children].find(b=>b.innerText===currentCat).classList.add('active');
+  const box=document.getElementById('products');
+  box.innerHTML='';
+  products.filter(p=>currentCat==='Alle'||p.cat===currentCat).forEach(p=>{
+    const d=document.createElement('div');
+    d.className='card'+(p.unavailable?' unavailable':'');
+    const priceHTML=p.angebot
+      ? `<span class="old">€${p.price}</span><span class="offer">€${p.angebot}</span>`
+      : `<span class="price">€${p.price}</span>`;
+    d.innerHTML=`<strong>${p.name}</strong>${priceHTML}`;
+    const btn=document.createElement('button');
+    btn.innerText=p.unavailable?'Nicht verfügbar':'Bestellen';
+    btn.disabled=!!p.unavailable;
+    btn.onclick=()=>openOrder(p);
+    d.appendChild(btn);
+    box.appendChild(d);
+  });
+}
+render();
+
+function openOrder(p){
+  current=p;
+  document.getElementById('orderInfo').innerText=p.name;
+  document.getElementById('overlay').style.display='flex';
+}
+
+function showToast(msg,isError=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.remove('error');
+  if(isError) t.classList.add('error');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3200);
+}
+
+const orderBtn=document.getElementById('orderBtn');
+orderBtn.onclick=sendOrder;
+
+function sendOrder(){
+  const name=document.getElementById('fullname').value.trim();
+  const email=document.getElementById('email').value.trim();
+
+  if(!current){showToast('Kein Produkt gewählt',true);return;}
+  if(!name||!email){showToast('Bitte Name & E-Mail angeben',true);return;}
+
+  orderBtn.disabled=true;
+  orderBtn.innerText='Sende Bestellung…';
+
+  const payload={
+    content:
+      `👑 **VAPE ROYAL – NEUE BESTELLUNG**\n`+
+      `👤 Name: ${name}\n`+
+      `📧 E-Mail: ${email}\n`+
+      `📦 Produkt: ${current.name}\n`+
+      `💰 Preis: €${current.angebot ?? current.price}`
+  };
+
+  fetch(WEBHOOK,{
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  });
+
+  document.getElementById('overlay').style.display='none';
+  showToast('Bestellung empfangen 👑');
+
+  orderBtn.disabled=false;
+  orderBtn.innerText='Bestellung abschicken';
+}
+</script></body>
+</html>
